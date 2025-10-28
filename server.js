@@ -6,7 +6,8 @@ const cors = require('cors');
 const fs = require('fs');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const os = require('os');
 
 // Middleware
 app.use(cors());
@@ -14,13 +15,22 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('.'));
 
-// Create uploads directory
-const uploadsDir = path.join(__dirname, 'uploads');
+// Determine storage locations.
+// On serverless platforms (like Vercel) the project directory is read-only and ephemeral.
+// Use OS temp dir when running in serverless environment (process.env.VERCEL is set by Vercel).
+const isServerless = !!process.env.VERCEL;
+const uploadsDir = process.env.UPLOADS_DIR || (isServerless ? path.join(os.tmpdir(), 'uploads') : path.join(__dirname, 'uploads'));
 if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir);
+    // Wrap with try/catch because some environments may be strictly read-only.
+    try {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+    } catch (e) {
+        console.error('Could not create uploads directory:', uploadsDir, e.message);
+    }
 }
 
 // Serve uploaded files directory (so frontend can preview/download via /uploads/<filename>)
+// Note: on serverless platforms this will serve files only for the lifetime of the instance (ephemeral).
 app.use('/uploads', express.static(uploadsDir));
 
 // Configure multer for file uploads
@@ -41,8 +51,11 @@ const upload = multer({
     }
 });
 
-// Initialize SQLite database
-const db = new sqlite3.Database('academic_content.db');
+// Initialize SQLite database.
+// Use a writable path (tmp) when running serverless, or the project root for local deployments.
+const dbPath = process.env.DB_PATH || (isServerless ? path.join(os.tmpdir(), 'academic_content.db') : path.join(__dirname, 'academic_content.db'));
+console.log('Using DB path:', dbPath);
+const db = new sqlite3.Database(dbPath);
 
 // Create tables
 db.serialize(() => {
@@ -244,8 +257,13 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log('SNPSU Nexus Backend is ready!');
-});
+// Start server when running locally. On Vercel (serverless) we export the `app` and use a wrapper.
+if (!isServerless) {
+    app.listen(PORT, () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+        console.log('SNPSU Nexus Backend is ready!');
+    });
+} else {
+    // When running on Vercel, export the Express app so a serverless wrapper can use it.
+    module.exports = app;
+}

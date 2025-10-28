@@ -276,7 +276,7 @@ function adminLogin(event) {
     const password = document.getElementById('admin-password').value;
     
     // Simple authentication (in production, this would be server-side)
-    if (username === 'Prem' && password === 'Pree0507') {
+    if (username === 'Preetham' && password === 'Pree0507') {
         isAdminLoggedIn = true;
         localStorage.setItem('adminLoggedIn', 'true');
         hideAdminLogin();
