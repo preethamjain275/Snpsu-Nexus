@@ -1,0 +1,12 @@
+# Render deployment configuration
+# This file tells Render how to build and deploy your application
+
+# Build command (install dependencies)
+build: npm install
+
+# Start command (run the server)
+start: node server.js
+
+# Environment variables (set these in Render dashboard)
+# NODE_ENV=production
+# PORT=10000
